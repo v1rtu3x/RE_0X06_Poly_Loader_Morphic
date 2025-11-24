@@ -22,6 +22,11 @@ SECTIONS
     *(.bss .bss.* COMMON)
   }
 
+  .packmeta :
+  {
+    *(.packmeta)
+  }
+
   .packed :
   {
     __packed_start = .;

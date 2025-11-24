@@ -1,3 +1,5 @@
+// stub/stub.c
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -8,12 +10,21 @@
 extern unsigned char __packed_start[];
 extern unsigned char __packed_end[];
 
-uint8_t g_key = 0;
-uint8_t g_rot = 0;
-uint32_t g_expected_sum = 0;
+/* Metadata struct for the packer, lives in its own section (.packmeta) */
+struct packer_meta {
+    uint8_t  key;
+    uint8_t  rot;
+    uint16_t pad;           /* padding / alignment */
+    uint32_t expected_sum;
+};
 
+/* This object will be patched by the packer */
+__attribute__((section(".packmeta")))
+struct packer_meta g_meta = {0, 0, 0, 0};
+
+/* Placeholder packed region; packer will overwrite it with encoded payload */
 __attribute__((section(".packed")))
-unsigned char g_packed_placeholder[4096] = {0};  
+unsigned char g_packed_placeholder[4096] = {0};
 
 static inline uint8_t ror(uint8_t v, uint8_t r) {
     r &= 7;
@@ -37,9 +48,10 @@ static void *alloc_rw(size_t size) {
     size_t ps = (size_t)pagesz;
     size_t alloc_size = (size + ps - 1) & ~(ps - 1);
 
-    void *p = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE,
-                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-
+    void *p = mmap(NULL, alloc_size,
+                   PROT_READ | PROT_WRITE,
+                   MAP_PRIVATE | MAP_ANONYMOUS,
+                   -1, 0);
     if (p == MAP_FAILED) {
         perror("mmap");
         return NULL;
@@ -56,9 +68,9 @@ static int make_rx(void *p, size_t size) {
     size_t ps = (size_t)pagesz;
 
     uintptr_t start = (uintptr_t)p;
-    uintptr_t base = start & ~(ps - 1);
-    uintptr_t end = start + size;
-    size_t len = (size_t)((end + ps - 1) & ~(ps - 1)) - base;
+    uintptr_t base  = start & ~(ps - 1);
+    uintptr_t end   = start + size;
+    size_t len      = (size_t)((end + ps - 1) & ~(ps - 1)) - base;
 
     if (mprotect((void *)base, len, PROT_READ | PROT_EXEC) != 0) {
         perror("mprotect");
@@ -69,7 +81,7 @@ static int make_rx(void *p, size_t size) {
 
 int main(void) {
     uint8_t *packed = __packed_start;
-    size_t packed_size = (size_t)(__packed_end - __packed_start);
+    size_t   packed_size = (size_t)(__packed_end - __packed_start);
 
     if (packed_size == 0) {
         fprintf(stderr, "No packed data\n");
@@ -84,16 +96,18 @@ int main(void) {
     uint8_t *out = (uint8_t *)buf;
     for (size_t i = 0; i < packed_size; i++) {
         uint8_t c = packed[i];
-        c = ror(c, g_rot);
-        c ^= g_key;
+        c = ror(c, g_meta.rot);
+        c ^= g_meta.key;
         out[i] = c;
     }
 
     uint32_t sum = checksum(out, packed_size);
-    if (sum != g_expected_sum) {
-        printf("Integrity check failed (got 0x%08x, expected 0x%08x)\n", sum, g_expected_sum);
+    if (sum != g_meta.expected_sum) {
+        fprintf(stderr,
+                "Integrity check failed (got 0x%08x, expected 0x%08x)\n",
+                sum, g_meta.expected_sum);
         volatile int *crash = (int *)0x1;
-        *crash = 42;  
+        *crash = 42;  // intentional crash on mismatch
         return 1;
     }
 
