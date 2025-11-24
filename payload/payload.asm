@@ -3,18 +3,17 @@
 .global payload_entry
 
 payload_entry:
-    lea rsi, [rip + msg]
-    mov rdi, 1
-    mov rdx, len
-    mov rax, 1
+    lea rsi, [rip + msg]         
+    mov edi, 1                   
+    mov edx, msg_end - msg      
+    mov eax, 1                   
     syscall
 
-    mov rax, 60
-    xor rdi, rdi
+    mov eax, 60                 
+    xor edi, edi                
     syscall
 
-.section .rodata
 msg:
     .ascii "Correct, here is your flag:\n"
     .ascii "FLAG{rwx_roulette_polymorphic_loader}\n"
-len = . - msg
+msg_end:

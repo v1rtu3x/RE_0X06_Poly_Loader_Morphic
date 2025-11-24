@@ -4,22 +4,22 @@ SECTIONS
 
   .text :
   {
-    *(.text .text.*)
+    *(.text*)
   }
 
   .rodata :
   {
-    *(.rodata .rodata.*)
+    *(.rodata*)
   }
 
   .data :
   {
-    *(.data .data.*)
+    *(.data*)
   }
 
   .bss :
   {
-    *(.bss .bss.* COMMON)
+    *(.bss*)
   }
 
   .packmeta :
@@ -32,10 +32,5 @@ SECTIONS
     __packed_start = .;
     *(.packed)
     __packed_end = .;
-  }
-
-  /DISCARD/ :
-  {
-    *(.comment)
   }
 }
